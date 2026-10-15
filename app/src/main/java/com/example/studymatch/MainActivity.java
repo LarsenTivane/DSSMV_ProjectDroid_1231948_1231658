@@ -40,7 +40,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
         btnCarregar.setOnClickListener(v -> carregarGrupos());
 
-        // Configuración del acelerómetro nativo
+        // Inicialização do acelerómetro nativo
         sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         if (sensorManager != null) {
             accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
@@ -88,7 +88,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         currentAccel = (float) Math.sqrt(x * x + y * y + z * z);
         float delta = currentAccel - lastAccel;
 
-        // Detección del movimiento de Shake
+        // Deteção do gesto físico de agitação (Shake)
         if (delta > 11) {
             tvSensor.setText("Shake detetado! A atualizar lista...");
             carregarGrupos();
