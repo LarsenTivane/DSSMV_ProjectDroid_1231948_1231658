@@ -38,6 +38,9 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         tvSensor = findViewById(R.id.tvSensor);
         btnCarregar = findViewById(R.id.btnCarregar);
 
+        Button btnCriarVaga = findViewById(R.id.btnCriarVaga);
+        btnCriarVaga.setOnClickListener(v -> mostrarDialogoCriacao());
+
         btnCarregar.setOnClickListener(v -> carregarGrupos());
 
         // Inicialização do acelerómetro nativo
@@ -76,6 +79,61 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 tvResultado.setText("Erro de rede: " + t.getMessage());
             }
         });
+    }
+
+    private void mostrarDialogoCriacao() {
+        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
+        builder.setTitle("Publicar Nova Vaga");
+
+        android.widget.LinearLayout layout = new android.widget.LinearLayout(this);
+        layout.setOrientation(android.widget.LinearLayout.VERTICAL);
+        layout.setPadding(50, 40, 50, 10);
+
+        final android.widget.EditText inputTitle = new android.widget.EditText(this);
+        inputTitle.setHint("Título (ex: Grupo DSSMV)");
+        layout.addView(inputTitle);
+
+        final android.widget.EditText inputSubject = new android.widget.EditText(this);
+        inputSubject.setHint("Disciplina (ex: DSSMV)");
+        layout.addView(inputSubject);
+
+        final android.widget.EditText inputVacancies = new android.widget.EditText(this);
+        inputVacancies.setHint("Vagas em falta (ex: 1)");
+        inputVacancies.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+        layout.addView(inputVacancies);
+
+        builder.setView(layout);
+
+        builder.setPositiveButton("Publicar", (dialog, which) -> {
+            String title = inputTitle.getText().toString();
+            String subject = inputSubject.getText().toString();
+            int vacancies = 1;
+            try {
+                vacancies = Integer.parseInt(inputVacancies.getText().toString());
+            } catch (NumberFormatException ignored) {}
+
+            StudyGroup novoGrupo = new StudyGroup(title, subject, vacancies);
+
+            ApiClient.getService().createStudyGroup(novoGrupo).enqueue(new Callback<StudyGroup>() {
+                @Override
+                public void onResponse(Call<StudyGroup> call, Response<StudyGroup> response) {
+                    if (response.isSuccessful()) {
+                        Toast.makeText(MainActivity.this, "Vaga criada com sucesso!", Toast.LENGTH_SHORT).show();
+                        carregarGrupos(); // Atualiza a lista logo a seguir
+                    } else {
+                        Toast.makeText(MainActivity.this, "Erro: " + response.code(), Toast.LENGTH_SHORT).show();
+                    }
+                }
+
+                @Override
+                public void onFailure(Call<StudyGroup> call, Throwable t) {
+                    Toast.makeText(MainActivity.this, "Falha de rede: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                }
+            });
+        });
+
+        builder.setNegativeButton("Cancelar", (dialog, which) -> dialog.cancel());
+        builder.show();
     }
 
     @Override
