@@ -1,18 +1,32 @@
 package com.example.studymatch;
 
+import android.Manifest;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
+import android.location.Location;
 import android.os.Bundle;
 import android.widget.Button;
+import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationServices;
 
 import java.util.List;
+import java.util.Locale;
 
 import retrofit2.Call;
 import retrofit2.Callback;
@@ -20,12 +34,22 @@ import retrofit2.Response;
 
 public class MainActivity extends AppCompatActivity implements SensorEventListener {
 
-    private TextView tvResultado;
+    private static final int LOCATION_PERMISSION_REQUEST = 1001;
+    // Coordenadas aproximadas do ISEP (Porto)
+    private static final double ISEP_LATITUDE = 41.1780;
+    private static final double ISEP_LONGITUDE = -8.6080;
+
+    private RecyclerView rvStudyGroups;
+    private StudyGroupAdapter adapter;
     private TextView tvSensor;
-    private Button btnCarregar;
+    private TextView tvFocusMode;
+    private TextView tvLocation;
 
     private SensorManager sensorManager;
     private Sensor accelerometer;
+    private Sensor proximitySensor;
+    private FusedLocationProviderClient fusedLocationClient;
+
     private float currentAccel;
     private float lastAccel;
 
@@ -34,71 +58,125 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        tvResultado = findViewById(R.id.tvResultado);
         tvSensor = findViewById(R.id.tvSensor);
-        btnCarregar = findViewById(R.id.btnCarregar);
-
+        tvFocusMode = findViewById(R.id.tvFocusMode);
+        tvLocation = findViewById(R.id.tvLocation);
+        Button btnCarregar = findViewById(R.id.btnCarregar);
         Button btnCriarVaga = findViewById(R.id.btnCriarVaga);
-        btnCriarVaga.setOnClickListener(v -> mostrarDialogoCriacao());
+        rvStudyGroups = findViewById(R.id.rvStudyGroups);
+
+        // 1. Configurar RecyclerView
+        rvStudyGroups.setLayoutManager(new LinearLayoutManager(this));
+        adapter = new StudyGroupAdapter(this::apagarGrupo);
+        rvStudyGroups.setAdapter(adapter);
 
         btnCarregar.setOnClickListener(v -> carregarGrupos());
+        btnCriarVaga.setOnClickListener(v -> mostrarDialogoCriacao());
 
-        // Inicialização do acelerómetro nativo
+        // 2. Configurar Sensores
         sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         if (sensorManager != null) {
             accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+            proximitySensor = sensorManager.getDefaultSensor(Sensor.TYPE_PROXIMITY);
         }
         currentAccel = SensorManager.GRAVITY_EARTH;
         lastAccel = SensorManager.GRAVITY_EARTH;
+
+        // 3. Inicializar GPS
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+        obterLocalizacao();
+
+        carregarGrupos();
+    }
+
+    private void obterLocalizacao() {
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION},
+                    LOCATION_PERMISSION_REQUEST);
+            return;
+        }
+
+        fusedLocationClient.getLastLocation().addOnSuccessListener(this, location -> {
+            if (location != null) {
+                float[] results = new float[1];
+                Location.distanceBetween(location.getLatitude(), location.getLongitude(),
+                        ISEP_LATITUDE, ISEP_LONGITUDE, results);
+                float distanciaMetros = results[0];
+
+                if (distanciaMetros < 1000) {
+                    tvLocation.setText(String.format(Locale.getDefault(), "📍 Campus ISEP: a %.0f m de distância", distanciaMetros));
+                } else {
+                    tvLocation.setText(String.format(Locale.getDefault(), "📍 Fora do Campus: a %.1f km do ISEP", distanciaMetros / 1000.0f));
+                }
+            } else {
+                tvLocation.setText("📍 Localização: A aguardar sinal GPS...");
+            }
+        });
     }
 
     private void carregarGrupos() {
-        tvResultado.setText("A ligar ao RestDB.io...");
-
         ApiClient.getService().getStudyGroups().enqueue(new Callback<List<StudyGroup>>() {
             @Override
             public void onResponse(Call<List<StudyGroup>> call, Response<List<StudyGroup>> response) {
                 if (response.isSuccessful() && response.body() != null) {
-                    List<StudyGroup> grupos = response.body();
-                    StringBuilder sb = new StringBuilder();
-                    sb.append("Total de grupos: ").append(grupos.size()).append("\n\n");
-                    for (StudyGroup g : grupos) {
-                        sb.append("• ").append(g.getTitle())
-                                .append(" [").append(g.getSubject()).append("]")
-                                .append(" - Vagas: ").append(g.getVacancies()).append("\n");
-                    }
-                    tvResultado.setText(sb.toString());
-                    Toast.makeText(MainActivity.this, "Grupos carregados com sucesso!", Toast.LENGTH_SHORT).show();
+                    adapter.setGroups(response.body());
                 } else {
-                    tvResultado.setText("Erro na API: " + response.code());
+                    Toast.makeText(MainActivity.this, "Erro API: " + response.code(), Toast.LENGTH_SHORT).show();
                 }
             }
 
             @Override
             public void onFailure(Call<List<StudyGroup>> call, Throwable t) {
-                tvResultado.setText("Erro de rede: " + t.getMessage());
+                Toast.makeText(MainActivity.this, "Falha de rede: " + t.getMessage(), Toast.LENGTH_SHORT).show();
             }
         });
     }
 
+    private void apagarGrupo(StudyGroup group) {
+        new AlertDialog.Builder(this)
+                .setTitle("Fechar Vaga")
+                .setMessage("Deseja encerrar a vaga '" + group.getTitle() + "'?")
+                .setPositiveButton("Sim", (dialog, which) -> {
+                    ApiClient.getService().deleteStudyGroup(group.getId()).enqueue(new Callback<Void>() {
+                        @Override
+                        public void onResponse(Call<Void> call, Response<Void> response) {
+                            if (response.isSuccessful()) {
+                                Toast.makeText(MainActivity.this, "Vaga encerrada!", Toast.LENGTH_SHORT).show();
+                                carregarGrupos();
+                            } else {
+                                Toast.makeText(MainActivity.this, "Erro ao remover: " + response.code(), Toast.LENGTH_SHORT).show();
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Call<Void> call, Throwable t) {
+                            Toast.makeText(MainActivity.this, "Erro de rede: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                        }
+                    });
+                })
+                .setNegativeButton("Não", null)
+                .show();
+    }
+
     private void mostrarDialogoCriacao() {
-        android.app.AlertDialog.Builder builder = new android.app.AlertDialog.Builder(this);
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
         builder.setTitle("Publicar Nova Vaga");
 
-        android.widget.LinearLayout layout = new android.widget.LinearLayout(this);
-        layout.setOrientation(android.widget.LinearLayout.VERTICAL);
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
         layout.setPadding(50, 40, 50, 10);
 
-        final android.widget.EditText inputTitle = new android.widget.EditText(this);
+        final EditText inputTitle = new EditText(this);
         inputTitle.setHint("Título (ex: Grupo DSSMV)");
         layout.addView(inputTitle);
 
-        final android.widget.EditText inputSubject = new android.widget.EditText(this);
+        final EditText inputSubject = new EditText(this);
         inputSubject.setHint("Disciplina (ex: DSSMV)");
         layout.addView(inputSubject);
 
-        final android.widget.EditText inputVacancies = new android.widget.EditText(this);
-        inputVacancies.setHint("Vagas em falta (ex: 1)");
+        final EditText inputVacancies = new EditText(this);
+        inputVacancies.setHint("Vagas em aberto (ex: 2)");
         inputVacancies.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
         layout.addView(inputVacancies);
 
@@ -112,44 +190,59 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 vacancies = Integer.parseInt(inputVacancies.getText().toString());
             } catch (NumberFormatException ignored) {}
 
-            StudyGroup novoGrupo = new StudyGroup(title, subject, vacancies);
-
-            ApiClient.getService().createStudyGroup(novoGrupo).enqueue(new Callback<StudyGroup>() {
+            StudyGroup novo = new StudyGroup(title, subject, vacancies);
+            ApiClient.getService().createStudyGroup(novo).enqueue(new Callback<StudyGroup>() {
                 @Override
                 public void onResponse(Call<StudyGroup> call, Response<StudyGroup> response) {
                     if (response.isSuccessful()) {
-                        Toast.makeText(MainActivity.this, "Vaga criada com sucesso!", Toast.LENGTH_SHORT).show();
-                        carregarGrupos(); // Atualiza a lista logo a seguir
-                    } else {
-                        Toast.makeText(MainActivity.this, "Erro: " + response.code(), Toast.LENGTH_SHORT).show();
+                        Toast.makeText(MainActivity.this, "Vaga criada!", Toast.LENGTH_SHORT).show();
+                        carregarGrupos();
                     }
                 }
 
                 @Override
                 public void onFailure(Call<StudyGroup> call, Throwable t) {
-                    Toast.makeText(MainActivity.this, "Falha de rede: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                    Toast.makeText(MainActivity.this, "Erro ao criar: " + t.getMessage(), Toast.LENGTH_SHORT).show();
                 }
             });
         });
 
-        builder.setNegativeButton("Cancelar", (dialog, which) -> dialog.cancel());
+        builder.setNegativeButton("Cancelar", null);
         builder.show();
     }
 
     @Override
     public void onSensorChanged(SensorEvent event) {
-        float x = event.values[0];
-        float y = event.values[1];
-        float z = event.values[2];
+        if (event.sensor.getType() == Sensor.TYPE_ACCELEROMETER) {
+            float x = event.values[0];
+            float y = event.values[1];
+            float z = event.values[2];
 
-        lastAccel = currentAccel;
-        currentAccel = (float) Math.sqrt(x * x + y * y + z * z);
-        float delta = currentAccel - lastAccel;
+            lastAccel = currentAccel;
+            currentAccel = (float) Math.sqrt(x * x + y * y + z * z);
+            float delta = currentAccel - lastAccel;
 
-        // Deteção do gesto físico de agitação (Shake)
-        if (delta > 11) {
-            tvSensor.setText("Shake detetado! A atualizar lista...");
-            carregarGrupos();
+            if (delta > 11) {
+                tvSensor.setText("Shake detetado! A atualizar...");
+                carregarGrupos();
+                obterLocalizacao();
+            }
+        } else if (event.sensor.getType() == Sensor.TYPE_PROXIMITY) {
+            if (event.values[0] < proximitySensor.getMaximumRange()) {
+                tvFocusMode.setText("Sessão de Foco: Telemóvel pousado na mesa");
+                tvFocusMode.setBackgroundColor(0xFFC8E6C9);
+            } else {
+                tvFocusMode.setText("Mesa de Estudo: Telemóvel ativo");
+                tvFocusMode.setBackgroundColor(0xFFE0F2F1);
+            }
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == LOCATION_PERMISSION_REQUEST && grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            obterLocalizacao();
         }
     }
 
@@ -159,8 +252,13 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     @Override
     protected void onResume() {
         super.onResume();
-        if (sensorManager != null && accelerometer != null) {
-            sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_UI);
+        if (sensorManager != null) {
+            if (accelerometer != null) {
+                sensorManager.registerListener(this, accelerometer, SensorManager.SENSOR_DELAY_UI);
+            }
+            if (proximitySensor != null) {
+                sensorManager.registerListener(this, proximitySensor, SensorManager.SENSOR_DELAY_UI);
+            }
         }
     }
 

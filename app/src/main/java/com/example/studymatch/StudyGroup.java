@@ -21,6 +21,7 @@ public class StudyGroup {
         this.vacancies = vacancies;
     }
 
+    public String getId() { return id; } // <-- Adicionado para o DELETE funcionar
     public String getTitle() { return title; }
     public String getSubject() { return subject; }
     public int getVacancies() { return vacancies; }
