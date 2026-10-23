@@ -2,6 +2,7 @@ package com.example.studymatch;
 
 import android.Manifest;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -58,6 +59,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
+        // 1. Mapeamento das Views
         tvSensor = findViewById(R.id.tvSensor);
         tvFocusMode = findViewById(R.id.tvFocusMode);
         tvLocation = findViewById(R.id.tvLocation);
@@ -65,17 +67,22 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         Button btnCriarVaga = findViewById(R.id.btnCriarVaga);
         rvStudyGroups = findViewById(R.id.rvStudyGroups);
 
-        // 1. Configurar RecyclerView
+        // 2. Botão para abrir o ecrã de vagas publicadas
+        Button btnAbrirVagasPublicadas = findViewById(R.id.btnAbrirVagasPublicadas);
+        btnAbrirVagasPublicadas.setOnClickListener(v -> {
+            Intent intent = new Intent(MainActivity.this, PublishedGroupsActivity.class);
+            startActivity(intent);
+        });
+
+        // 3. Configurar RecyclerView
         rvStudyGroups.setLayoutManager(new LinearLayoutManager(this));
         adapter = new StudyGroupAdapter(this::apagarGrupo);
         rvStudyGroups.setAdapter(adapter);
 
-        tvSensor.setText("Agite o telemóvel para atualizar");
-
         btnCarregar.setOnClickListener(v -> carregarGrupos());
         btnCriarVaga.setOnClickListener(v -> mostrarDialogoCriacao());
 
-        // 2. Configurar Sensores
+        // 4. Configurar Sensores
         sensorManager = (SensorManager) getSystemService(Context.SENSOR_SERVICE);
         if (sensorManager != null) {
             accelerometer = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
@@ -84,10 +91,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         currentAccel = SensorManager.GRAVITY_EARTH;
         lastAccel = SensorManager.GRAVITY_EARTH;
 
-        // 3. Inicializar GPS
+        // 5. Inicializar GPS
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         obterLocalizacao();
 
+        // 6. Carga inicial dos registos
         carregarGrupos();
     }
 
