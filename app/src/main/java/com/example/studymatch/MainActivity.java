@@ -171,14 +171,14 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     private void mostrarDialogoCriacao() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Publicar Nova Vaga");
+        builder.setTitle("Publicar Nova Vaga no RestDB");
 
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setPadding(50, 40, 50, 10);
 
         final EditText inputTitle = new EditText(this);
-        inputTitle.setHint("Título (ex: Grupo DSSMV)");
+        inputTitle.setHint("Título (ex: Grupo Lab DSSMV)");
         layout.addView(inputTitle);
 
         final EditText inputSubject = new EditText(this);
@@ -186,33 +186,44 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         layout.addView(inputSubject);
 
         final EditText inputVacancies = new EditText(this);
-        inputVacancies.setHint("Vagas em aberto (ex: 2)");
+        inputVacancies.setHint("Vagas (ex: 2)");
         inputVacancies.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
         layout.addView(inputVacancies);
 
+        final EditText inputTurma = new EditText(this);
+        inputTurma.setHint("Turma (ex: 2DA, 1NA, 2NB)");
+        layout.addView(inputTurma);
+
         builder.setView(layout);
 
-        builder.setPositiveButton("Publicar", (dialog, which) -> {
-            String title = inputTitle.getText().toString();
-            String subject = inputSubject.getText().toString();
+        builder.setPositiveButton("Publicar na BD", (dialog, which) -> {
+            String title = inputTitle.getText().toString().trim();
+            String subject = inputSubject.getText().toString().trim();
+            String turma = inputTurma.getText().toString().trim();
+            if (turma.isEmpty()) turma = "Geral";
+
             int vacancies = 1;
             try {
-                vacancies = Integer.parseInt(inputVacancies.getText().toString());
+                vacancies = Integer.parseInt(inputVacancies.getText().toString().trim());
             } catch (NumberFormatException ignored) {}
 
-            StudyGroup novo = new StudyGroup(title, subject, vacancies);
-            ApiClient.getService().createStudyGroup(novo).enqueue(new Callback<StudyGroup>() {
+            // Envia as coordenadas reais do campus/utilizador para calcular a distância
+            StudyGroup novoGrupo = new StudyGroup(title, subject, vacancies, turma, ISEP_LATITUDE, ISEP_LONGITUDE);
+
+            ApiClient.getService().createStudyGroup(novoGrupo).enqueue(new Callback<StudyGroup>() {
                 @Override
                 public void onResponse(Call<StudyGroup> call, Response<StudyGroup> response) {
                     if (response.isSuccessful()) {
-                        Toast.makeText(MainActivity.this, "Vaga criada!", Toast.LENGTH_SHORT).show();
-                        carregarGrupos();
+                        Toast.makeText(MainActivity.this, "Vaga gravada com sucesso no RestDB!", Toast.LENGTH_SHORT).show();
+                        carregarGrupos(); // Atualiza logo a lista
+                    } else {
+                        Toast.makeText(MainActivity.this, "Erro API: " + response.code(), Toast.LENGTH_LONG).show();
                     }
                 }
 
                 @Override
                 public void onFailure(Call<StudyGroup> call, Throwable t) {
-                    Toast.makeText(MainActivity.this, "Erro ao criar: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                    Toast.makeText(MainActivity.this, "Falha de rede: " + t.getMessage(), Toast.LENGTH_LONG).show();
                 }
             });
         });

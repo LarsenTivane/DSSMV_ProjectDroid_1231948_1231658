@@ -56,6 +56,12 @@
             android:layout_gravity="center"
             android:visibility="gone" />
 
+    <Spinner
+            android:id="@+id/spTurmas"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp" />
+
     <!-- Lista com Scroll -->
     <androidx.recyclerview.widget.RecyclerView
             android:id="@+id/rvPublishedGroups"
