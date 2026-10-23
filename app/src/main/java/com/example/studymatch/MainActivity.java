@@ -70,6 +70,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         adapter = new StudyGroupAdapter(this::apagarGrupo);
         rvStudyGroups.setAdapter(adapter);
 
+        tvSensor.setText("Agite o telemóvel para atualizar");
+
         btnCarregar.setOnClickListener(v -> carregarGrupos());
         btnCriarVaga.setOnClickListener(v -> mostrarDialogoCriacao());
 
