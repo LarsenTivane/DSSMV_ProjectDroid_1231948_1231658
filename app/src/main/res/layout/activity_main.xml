@@ -1,54 +1,81 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:id="@+id/main"
               android:layout_width="match_parent"
               android:layout_height="match_parent"
               android:orientation="vertical"
-              android:padding="24dp"
-              android:gravity="center_horizontal">
+              android:padding="16dp">
 
     <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="StudyMatch"
-            android:textSize="26sp"
+            android:textSize="24sp"
             android:textStyle="bold"
-            android:layout_marginBottom="20dp"/>
+            android:layout_gravity="center_horizontal"
+            android:layout_marginBottom="12dp" />
 
-    <Button
-            android:id="@+id/btnCarregar"
+    <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Consultar Grupos (API)"/>
+            android:orientation="horizontal">
 
-    <Button
-            android:id="@+id/btnCriarVaga"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="+ Publicar Nova Vaga (POST)"
-            android:layout_marginTop="8dp" />
+        <Button
+                android:id="@+id/btnCarregar"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Atualizar" />
 
+        <Button
+                android:id="@+id/btnCriarVaga"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:text="+ Nova Vaga" />
+    </LinearLayout>
+
+    <!-- Indicador do Modo Foco (Sensor de Proximidade) -->
     <TextView
-            android:id="@+id/tvResultado"
+            android:id="@+id/tvFocusMode"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:padding="16dp"
-            android:textSize="16sp"
-            android:text="Estado: A aguardar pedido..."
-            android:layout_marginTop="16dp"/>
+            android:layout_marginTop="8dp"
+            android:padding="6dp"
+            android:background="#E0F2F1"
+            android:textColor="#004D40"
+            android:text="Mesa de Estudo: Telemóvel ativo"
+            android:textAlignment="center"
+            android:textSize="12sp" />
 
-    <View
+    <!-- Indicador de GPS / Distância ao Campus -->
+    <TextView
+            android:id="@+id/tvLocation"
             android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#CCCCCC"
-            android:layout_marginVertical="24dp"/>
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:padding="6dp"
+            android:background="#EDE7F6"
+            android:textColor="#4527A0"
+            android:text="📍 A calcular distância ao ISEP..."
+            android:textAlignment="center"
+            android:textSize="12sp" />
+
+    <!-- Lista de Cartões -->
+    <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvStudyGroups"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:layout_marginTop="8dp" />
 
     <TextView
             android:id="@+id/tvSensor"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Acelerómetro ativo: Agite o telemóvel para atualizar!"
+            android:text="Agite o telemóvel para atualizar"
             android:textAlignment="center"
-            android:textSize="15sp"/>
+            android:textSize="12sp"
+            android:layout_marginTop="4dp" />
 
 </LinearLayout>
