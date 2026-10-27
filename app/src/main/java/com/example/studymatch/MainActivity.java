@@ -76,7 +76,17 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
         // 3. Configurar RecyclerView
         rvStudyGroups.setLayoutManager(new LinearLayoutManager(this));
-        adapter = new StudyGroupAdapter(this::apagarGrupo);
+        adapter = new StudyGroupAdapter(new StudyGroupAdapter.OnActionClickListener() {
+            @Override
+            public void onJoinClick(StudyGroup group) {
+                alterarParticipacaoGrupo(group);
+            }
+
+            @Override
+            public void onDeleteClick(StudyGroup group) {
+                apagarGrupo(group);
+            }
+        });
         rvStudyGroups.setAdapter(adapter);
 
         btnCarregar.setOnClickListener(v -> carregarGrupos());
@@ -130,7 +140,19 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             @Override
             public void onResponse(Call<List<StudyGroup>> call, Response<List<StudyGroup>> response) {
                 if (response.isSuccessful() && response.body() != null) {
-                    adapter.setGroups(response.body());
+                    List<StudyGroup> grupos = response.body();
+                    for (StudyGroup grupo : grupos) {
+                        if (grupo.getTitle() == null || grupo.getTitle().trim().isEmpty()) {
+                            grupo.setTitle("Grupo de estudo");
+                        }
+                        if (grupo.getSubject() == null || grupo.getSubject().trim().isEmpty()) {
+                            grupo.setSubject("Geral");
+                        }
+                        if (grupo.getTurma() == null || grupo.getTurma().trim().isEmpty()) {
+                            grupo.setTurma("Geral");
+                        }
+                    }
+                    adapter.setGroups(grupos);
                 } else {
                     Toast.makeText(MainActivity.this, "Erro API: " + response.code(), Toast.LENGTH_SHORT).show();
                 }
@@ -139,6 +161,34 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             @Override
             public void onFailure(Call<List<StudyGroup>> call, Throwable t) {
                 Toast.makeText(MainActivity.this, "Falha de rede: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
+
+    private void alterarParticipacaoGrupo(StudyGroup group) {
+        boolean novoEstado = !group.isJoined();
+        group.setJoined(novoEstado);
+
+        int novasVagas = Math.max(0, group.getVacancies() + (novoEstado ? -1 : 1));
+        group.setVacancies(novasVagas);
+
+        ApiClient.getService().updateStudyGroup(group.getId(), group).enqueue(new Callback<StudyGroup>() {
+            @Override
+            public void onResponse(Call<StudyGroup> call, Response<StudyGroup> response) {
+                if (response.isSuccessful()) {
+                    String mensagem = novoEstado ? "Entrou no grupo com sucesso!" : "Saiu do grupo.";
+                    Toast.makeText(MainActivity.this, mensagem, Toast.LENGTH_SHORT).show();
+                    carregarGrupos();
+                } else {
+                    Toast.makeText(MainActivity.this, "Não foi possível atualizar a participação: " + response.code(), Toast.LENGTH_SHORT).show();
+                    group.setJoined(!novoEstado);
+                    group.setVacancies(group.getVacancies() + (novoEstado ? 1 : -1));
+                }
+            }
+
+            @Override
+            public void onFailure(Call<StudyGroup> call, Throwable t) {
+                Toast.makeText(MainActivity.this, "Falha ao atualizar participação: " + t.getMessage(), Toast.LENGTH_SHORT).show();
             }
         });
     }
@@ -209,13 +259,15 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
             // Envia as coordenadas reais do campus/utilizador para calcular a distância
             StudyGroup novoGrupo = new StudyGroup(title, subject, vacancies, turma, ISEP_LATITUDE, ISEP_LONGITUDE);
+            novoGrupo.setJoined(true);
+            novoGrupo.setVacancies(Math.max(1, vacancies));
 
             ApiClient.getService().createStudyGroup(novoGrupo).enqueue(new Callback<StudyGroup>() {
                 @Override
                 public void onResponse(Call<StudyGroup> call, Response<StudyGroup> response) {
                     if (response.isSuccessful()) {
                         Toast.makeText(MainActivity.this, "Vaga gravada com sucesso no RestDB!", Toast.LENGTH_SHORT).show();
-                        carregarGrupos(); // Atualiza logo a lista
+                        carregarGrupos();
                     } else {
                         Toast.makeText(MainActivity.this, "Erro API: " + response.code(), Toast.LENGTH_LONG).show();
                     }

@@ -59,7 +59,17 @@ public class PublishedGroupsActivity extends AppCompatActivity {
         Button btnRecarregarVagas = findViewById(R.id.btnRecarregarVagas);
 
         rvPublishedGroups.setLayoutManager(new LinearLayoutManager(this));
-        adapter = new StudyGroupAdapter(this::confirmarRemocao);
+        adapter = new StudyGroupAdapter(new StudyGroupAdapter.OnActionClickListener() {
+            @Override
+            public void onJoinClick(StudyGroup group) {
+                alterarParticipacaoGrupo(group);
+            }
+
+            @Override
+            public void onDeleteClick(StudyGroup group) {
+                confirmarRemocao(group);
+            }
+        });
         rvPublishedGroups.setAdapter(adapter);
 
         btnFecharJanela.setOnClickListener(v -> finish());
@@ -100,7 +110,9 @@ public class PublishedGroupsActivity extends AppCompatActivity {
             @Override
             public void onFailure(Call<List<StudyGroup>> call, Throwable t) {
                 progressBar.setVisibility(View.GONE);
-                tvTotalVagas.setText("Falha de rede ao ligar ao RestDB.");
+                String detalhe = t.getLocalizedMessage();
+                tvTotalVagas.setText("Falha de rede ao ligar ao RestDB"
+                        + (detalhe == null || detalhe.trim().isEmpty() ? "." : ": " + detalhe));
             }
         });
     }
@@ -151,6 +163,9 @@ public class PublishedGroupsActivity extends AppCompatActivity {
         List<StudyGroup> filtrados = new ArrayList<>();
 
         for (StudyGroup g : todosGrupos) {
+            if (g.getTurma() == null || g.getTurma().trim().isEmpty()) {
+                g.setTurma("Geral");
+            }
             if (turma.equals("Todas as Turmas") || g.getTurma().equalsIgnoreCase(turma)) {
                 filtrados.add(g);
             }
@@ -158,6 +173,33 @@ public class PublishedGroupsActivity extends AppCompatActivity {
 
         adapter.setGroups(filtrados);
         tvTotalVagas.setText("A apresentar: " + filtrados.size() + " vaga(s) ordenada(s) por proximidade");
+    }
+
+    private void alterarParticipacaoGrupo(StudyGroup group) {
+        boolean novoEstado = !group.isJoined();
+        group.setJoined(novoEstado);
+        group.setVacancies(Math.max(0, group.getVacancies() + (novoEstado ? -1 : 1)));
+
+        ApiClient.getService().updateStudyGroup(group.getId(), group).enqueue(new Callback<StudyGroup>() {
+            @Override
+            public void onResponse(Call<StudyGroup> call, Response<StudyGroup> response) {
+                if (response.isSuccessful()) {
+                    Toast.makeText(PublishedGroupsActivity.this, novoEstado ? "Entrou no grupo!" : "Saiu do grupo.", Toast.LENGTH_SHORT).show();
+                    carregarVagasDaApi();
+                } else {
+                    Toast.makeText(PublishedGroupsActivity.this, "Erro ao atualizar participação.", Toast.LENGTH_SHORT).show();
+                }
+            }
+
+            @Override
+            public void onFailure(Call<StudyGroup> call, Throwable t) {
+                String detalhe = t.getLocalizedMessage();
+                Toast.makeText(PublishedGroupsActivity.this,
+                        "Falha ao atualizar o grupo"
+                                + (detalhe == null || detalhe.trim().isEmpty() ? "." : ": " + detalhe),
+                        Toast.LENGTH_LONG).show();
+            }
+        });
     }
 
     private void confirmarRemocao(StudyGroup group) {

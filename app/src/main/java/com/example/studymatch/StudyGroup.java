@@ -24,6 +24,9 @@ public class StudyGroup {
     @SerializedName("longitude")
     private double longitude;
 
+    @SerializedName("joined")
+    private boolean joined;
+
     @SerializedName("distanciaMetros")
     private transient float distanciaMetros;
 
@@ -65,6 +68,9 @@ public class StudyGroup {
 
     public double getLongitude() { return longitude; }
     public void setLongitude(double longitude) { this.longitude = longitude; }
+
+    public boolean isJoined() { return joined; }
+    public void setJoined(boolean joined) { this.joined = joined; }
 
     public float getDistanciaMetros() { return distanciaMetros; }
     public void setDistanciaMetros(float distanciaMetros) { this.distanciaMetros = distanciaMetros; }
