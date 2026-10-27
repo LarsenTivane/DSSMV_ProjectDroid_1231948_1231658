@@ -4,6 +4,7 @@ import android.Manifest;
 import android.content.pm.PackageManager;
 import android.location.Location;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
@@ -42,9 +43,15 @@ public class PublishedGroupsActivity extends AppCompatActivity {
     private TextView tvTotalVagas;
     private ProgressBar progressBar;
     private Spinner spTurmas;
+    private Button btnRecarregarVagas;
 
     private List<StudyGroup> todosGrupos = new ArrayList<>();
     private FusedLocationProviderClient fusedLocationClient;
+    private boolean aCarregar;
+    private boolean existePedidoApiAnterior;
+    private long ultimoPedidoTimestamp;
+
+    private static final long API_COOLDOWN_MS = 1500;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -56,7 +63,7 @@ public class PublishedGroupsActivity extends AppCompatActivity {
         rvPublishedGroups = findViewById(R.id.rvPublishedGroups);
         spTurmas = findViewById(R.id.spTurmas);
         Button btnFecharJanela = findViewById(R.id.btnFecharJanela);
-        Button btnRecarregarVagas = findViewById(R.id.btnRecarregarVagas);
+        btnRecarregarVagas = findViewById(R.id.btnRecarregarVagas);
 
         rvPublishedGroups.setLayoutManager(new LinearLayoutManager(this));
         adapter = new StudyGroupAdapter(new StudyGroupAdapter.OnActionClickListener() {
@@ -94,27 +101,67 @@ public class PublishedGroupsActivity extends AppCompatActivity {
     }
 
     private void carregarVagasDaApi() {
+        if (aCarregar || !registarPedidoApi()) {
+            return;
+        }
+
+        aCarregar = true;
         progressBar.setVisibility(View.VISIBLE);
+        btnRecarregarVagas.setEnabled(false);
         ApiClient.getService().getStudyGroups().enqueue(new Callback<List<StudyGroup>>() {
             @Override
             public void onResponse(Call<List<StudyGroup>> call, Response<List<StudyGroup>> response) {
-                progressBar.setVisibility(View.GONE);
+                terminarCarregamento();
                 if (response.isSuccessful() && response.body() != null) {
                     todosGrupos = response.body();
                     calcularDistanciasEConfigurarFiltro();
+                } else if (response.code() == 429) {
+                    tvTotalVagas.setText("Limite de pedidos momentâneo. Aguarde 2 segundos.");
+                    Toast.makeText(PublishedGroupsActivity.this,
+                            "Aguarde 2 segundos para atualizar...", Toast.LENGTH_SHORT).show();
                 } else {
-                    tvTotalVagas.setText("Erro ao obter grupos da API.");
+                    String corpo = "";
+                    try {
+                        if (response.errorBody() != null) {
+                            corpo = response.errorBody().string();
+                        }
+                    } catch (Exception ignored) {
+                    }
+                    tvTotalVagas.setText("Erro ao obter grupos da API (HTTP " + response.code() + ")"
+                            + (corpo.isEmpty() ? "." : ": " + corpo));
                 }
             }
 
             @Override
             public void onFailure(Call<List<StudyGroup>> call, Throwable t) {
-                progressBar.setVisibility(View.GONE);
+                terminarCarregamento();
                 String detalhe = t.getLocalizedMessage();
                 tvTotalVagas.setText("Falha de rede ao ligar ao RestDB"
                         + (detalhe == null || detalhe.trim().isEmpty() ? "." : ": " + detalhe));
             }
         });
+    }
+
+    private boolean registarPedidoApi() {
+        long agora = SystemClock.elapsedRealtime();
+        if (existePedidoApiAnterior && agora - ultimoPedidoTimestamp < API_COOLDOWN_MS) {
+            Toast.makeText(this, "Aguarde um instante...", Toast.LENGTH_SHORT).show();
+            return false;
+        }
+
+        ultimoPedidoTimestamp = agora;
+        existePedidoApiAnterior = true;
+        return true;
+    }
+
+    private void terminarCarregamento() {
+        aCarregar = false;
+        progressBar.setVisibility(View.GONE);
+        btnRecarregarVagas.setEnabled(true);
+    }
+
+    private void atualizarListaDepoisDoCooldown() {
+        rvPublishedGroups.postDelayed(this::carregarVagasDaApi, API_COOLDOWN_MS + 100);
     }
 
     private void calcularDistanciasEConfigurarFiltro() {
@@ -176,6 +223,10 @@ public class PublishedGroupsActivity extends AppCompatActivity {
     }
 
     private void alterarParticipacaoGrupo(StudyGroup group) {
+        if (!registarPedidoApi()) {
+            return;
+        }
+
         boolean novoEstado = !group.isJoined();
         group.setJoined(novoEstado);
         group.setVacancies(Math.max(0, group.getVacancies() + (novoEstado ? -1 : 1)));
@@ -185,9 +236,9 @@ public class PublishedGroupsActivity extends AppCompatActivity {
             public void onResponse(Call<StudyGroup> call, Response<StudyGroup> response) {
                 if (response.isSuccessful()) {
                     Toast.makeText(PublishedGroupsActivity.this, novoEstado ? "Entrou no grupo!" : "Saiu do grupo.", Toast.LENGTH_SHORT).show();
-                    carregarVagasDaApi();
+                    atualizarListaDepoisDoCooldown();
                 } else {
-                    Toast.makeText(PublishedGroupsActivity.this, "Erro ao atualizar participação.", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(PublishedGroupsActivity.this, "Erro ao atualizar participação (HTTP " + response.code() + ").", Toast.LENGTH_SHORT).show();
                 }
             }
 
@@ -207,12 +258,19 @@ public class PublishedGroupsActivity extends AppCompatActivity {
                 .setTitle("Encerrar Vaga")
                 .setMessage("Deseja fechar a vaga '" + group.getTitle() + "'?")
                 .setPositiveButton("Sim", (dialog, which) -> {
+                    if (!registarPedidoApi()) {
+                        return;
+                    }
+
                     ApiClient.getService().deleteStudyGroup(group.getId()).enqueue(new Callback<Void>() {
                         @Override
                         public void onResponse(Call<Void> call, Response<Void> response) {
                             if (response.isSuccessful()) {
                                 Toast.makeText(PublishedGroupsActivity.this, "Vaga encerrada!", Toast.LENGTH_SHORT).show();
-                                carregarVagasDaApi();
+                                atualizarListaDepoisDoCooldown();
+                            } else {
+                                Toast.makeText(PublishedGroupsActivity.this,
+                                        "Erro ao remover: " + response.code(), Toast.LENGTH_SHORT).show();
                             }
                         }
 

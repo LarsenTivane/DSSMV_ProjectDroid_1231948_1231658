@@ -10,6 +10,7 @@ import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.location.Location;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.LinearLayout;
@@ -39,6 +40,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     // Coordenadas aproximadas do ISEP (Porto)
     private static final double ISEP_LATITUDE = 41.1780;
     private static final double ISEP_LONGITUDE = -8.6080;
+    // Intervalo mínimo entre shakes (evita rajadas de pedidos ao RestDB)
+    private static final long SHAKE_COOLDOWN_MS = 3000;
 
     private RecyclerView rvStudyGroups;
     private StudyGroupAdapter adapter;
@@ -53,6 +56,8 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     private float currentAccel;
     private float lastAccel;
+    private long ultimoShake = 0;
+    private boolean aCarregar = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -136,9 +141,16 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     }
 
     private void carregarGrupos() {
+        // Evita pedidos sobrepostos (o plano Development só permite 1 pedido/segundo)
+        if (aCarregar) {
+            return;
+        }
+        aCarregar = true;
+
         ApiClient.getService().getStudyGroups().enqueue(new Callback<List<StudyGroup>>() {
             @Override
             public void onResponse(Call<List<StudyGroup>> call, Response<List<StudyGroup>> response) {
+                aCarregar = false;
                 if (response.isSuccessful() && response.body() != null) {
                     List<StudyGroup> grupos = response.body();
                     for (StudyGroup grupo : grupos) {
@@ -160,6 +172,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
             @Override
             public void onFailure(Call<List<StudyGroup>> call, Throwable t) {
+                aCarregar = false;
                 Toast.makeText(MainActivity.this, "Falha de rede: " + t.getMessage(), Toast.LENGTH_SHORT).show();
             }
         });
@@ -293,9 +306,11 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
             lastAccel = currentAccel;
             currentAccel = (float) Math.sqrt(x * x + y * y + z * z);
-            float delta = currentAccel - lastAccel;
+            float delta = Math.abs(currentAccel - lastAccel);
 
-            if (delta > 11) {
+            long agora = SystemClock.elapsedRealtime();
+            if (delta > 11 && agora - ultimoShake > SHAKE_COOLDOWN_MS) {
+                ultimoShake = agora;
                 tvSensor.setText("Shake detetado! A atualizar...");
                 carregarGrupos();
                 obterLocalizacao();

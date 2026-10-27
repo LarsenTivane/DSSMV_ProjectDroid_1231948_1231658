@@ -3,6 +3,7 @@ package com.example.studymatch;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
+import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 import okhttp3.OkHttpClient;
@@ -31,7 +32,22 @@ public class ApiClient {
                                         .header("x-apikey", RestDbService.API_KEY)
                                         .header("Accept", "application/json")
                                         .build();
-                                return chain.proceed(request);
+                                okhttp3.Response response = chain.proceed(request);
+
+                                // Plano Development: 1 pedido/segundo. Em caso de 429, espera e repete.
+                                int tentativas = 0;
+                                while (response.code() == 429 && tentativas < 3) {
+                                    response.close();
+                                    try {
+                                        Thread.sleep(1200);
+                                    } catch (InterruptedException e) {
+                                        Thread.currentThread().interrupt();
+                                        throw new IOException("Pedido interrompido", e);
+                                    }
+                                    response = chain.proceed(request);
+                                    tentativas++;
+                                }
+                                return response;
                             })
                             .build();
 

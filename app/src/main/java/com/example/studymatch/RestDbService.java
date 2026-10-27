@@ -11,7 +11,7 @@ import retrofit2.http.Path;
 
 public interface RestDbService {
 
-    String API_KEY = "44d5674bd1ebc2ea68b43181b7a6df8d3b432";
+    String API_KEY = "ff447bd7e0f009347926d87f1dfbfb9a879ab";
 
     @GET("rest/studygroups")
     Call<List<StudyGroup>> getStudyGroups();
