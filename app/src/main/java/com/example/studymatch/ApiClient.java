@@ -12,7 +12,7 @@ import retrofit2.converter.gson.GsonConverterFactory;
 
 public class ApiClient {
 
-    private static final String BASE_URL = "https://studymatch-25cf.restdb.io/";
+    private static final String BASE_URL = "https://studymatch-8319.restdb.io/";
     private static volatile Retrofit retrofit;
 
     public static RestDbService getService() {
