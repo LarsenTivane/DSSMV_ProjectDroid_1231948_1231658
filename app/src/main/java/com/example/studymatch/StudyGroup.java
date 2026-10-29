@@ -2,6 +2,9 @@ package com.example.studymatch;
 
 import com.google.gson.annotations.SerializedName;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class StudyGroup {
     @SerializedName("_id")
     private String id;
@@ -24,8 +27,13 @@ public class StudyGroup {
     @SerializedName("longitude")
     private double longitude;
 
-    @SerializedName("joined")
-    private boolean joined;
+    private transient boolean joined;
+
+    @SerializedName("creatorId")
+    private String creatorId;
+
+    @SerializedName("members")
+    private List<StudyGroupMember> members = new ArrayList<>();
 
     @SerializedName("distanciaMetros")
     private transient float distanciaMetros;
@@ -71,6 +79,42 @@ public class StudyGroup {
 
     public boolean isJoined() { return joined; }
     public void setJoined(boolean joined) { this.joined = joined; }
+
+    public String getCreatorId() { return creatorId; }
+    public void setCreatorId(String creatorId) { this.creatorId = creatorId; }
+
+    public List<StudyGroupMember> getMembers() {
+        if (members == null) {
+            members = new ArrayList<>();
+        }
+        return members;
+    }
+
+    public void setMembers(List<StudyGroupMember> members) {
+        this.members = members == null ? new ArrayList<>() : members;
+    }
+
+    public boolean hasMember(String memberId) {
+        return getMember(memberId) != null;
+    }
+
+    public StudyGroupMember getMember(String memberId) {
+        for (StudyGroupMember member : getMembers()) {
+            if (member != null && memberId.equals(member.getMemberId())) {
+                return member;
+            }
+        }
+        return null;
+    }
+
+    public void addMember(StudyGroupMember member) {
+        removeMember(member.getMemberId());
+        getMembers().add(member);
+    }
+
+    public void removeMember(String memberId) {
+        getMembers().removeIf(member -> memberId.equals(member.getMemberId()));
+    }
 
     public float getDistanciaMetros() { return distanciaMetros; }
     public void setDistanciaMetros(float distanciaMetros) { this.distanciaMetros = distanciaMetros; }

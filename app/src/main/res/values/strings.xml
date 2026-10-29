@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">StudyMatch</string>
+    <string name="study_group_cover_description">Grupo de estudantes a trabalhar em equipa</string>
 </resources>

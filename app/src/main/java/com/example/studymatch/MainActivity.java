@@ -45,6 +45,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     private RecyclerView rvStudyGroups;
     private StudyGroupAdapter adapter;
+    private String creatorId;
     private TextView tvSensor;
     private TextView tvFocusMode;
     private TextView tvLocation;
@@ -71,6 +72,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
         Button btnCarregar = findViewById(R.id.btnCarregar);
         Button btnCriarVaga = findViewById(R.id.btnCriarVaga);
         rvStudyGroups = findViewById(R.id.rvStudyGroups);
+        creatorId = GroupCreatorIdentity.getId(this);
 
         // 2. Botão para abrir o ecrã de vagas publicadas
         Button btnAbrirVagasPublicadas = findViewById(R.id.btnAbrirVagasPublicadas);
@@ -91,7 +93,12 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
             public void onDeleteClick(StudyGroup group) {
                 apagarGrupo(group);
             }
-        });
+
+            @Override
+            public void onViewMembersClick(StudyGroup group) {
+                abrirMembros(group);
+            }
+        }, creatorId);
         rvStudyGroups.setAdapter(adapter);
 
         btnCarregar.setOnClickListener(v -> carregarGrupos());
@@ -154,6 +161,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
                 if (response.isSuccessful() && response.body() != null) {
                     List<StudyGroup> grupos = response.body();
                     for (StudyGroup grupo : grupos) {
+                        grupo.setJoined(grupo.hasMember(creatorId));
                         if (grupo.getTitle() == null || grupo.getTitle().trim().isEmpty()) {
                             grupo.setTitle("Grupo de estudo");
                         }
@@ -179,43 +187,85 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
     }
 
     private void alterarParticipacaoGrupo(StudyGroup group) {
-        boolean novoEstado = !group.isJoined();
-        group.setJoined(novoEstado);
+        if (group.isJoined()) {
+            atualizarParticipacaoGrupo(group, null);
+            return;
+        }
 
-        int novasVagas = Math.max(0, group.getVacancies() + (novoEstado ? -1 : 1));
-        group.setVacancies(novasVagas);
+        MemberDetailsDialog.show(this,
+                (name, studentNumber) -> atualizarParticipacaoGrupo(
+                        group, new StudyGroupMember(creatorId, name, studentNumber)));
+    }
+
+    private void atualizarParticipacaoGrupo(StudyGroup group, StudyGroupMember member) {
+        boolean joining = member != null;
+        StudyGroupMember previousMember = group.getMember(creatorId);
+        int previousVacancies = group.getVacancies();
+        if (joining) {
+            group.addMember(member);
+        } else {
+            group.removeMember(creatorId);
+        }
+        group.setJoined(joining);
+        group.setVacancies(Math.max(0, previousVacancies + (joining ? -1 : 1)));
 
         ApiClient.getService().updateStudyGroup(group.getId(), group).enqueue(new Callback<StudyGroup>() {
             @Override
             public void onResponse(Call<StudyGroup> call, Response<StudyGroup> response) {
                 if (response.isSuccessful()) {
-                    String mensagem = novoEstado ? "Entrou no grupo com sucesso!" : "Saiu do grupo.";
+                    String mensagem = joining ? "Entraste no grupo!" : "Saíste do grupo.";
                     Toast.makeText(MainActivity.this, mensagem, Toast.LENGTH_SHORT).show();
                     carregarGrupos();
                 } else {
                     Toast.makeText(MainActivity.this, "Não foi possível atualizar a participação: " + response.code(), Toast.LENGTH_SHORT).show();
-                    group.setJoined(!novoEstado);
-                    group.setVacancies(group.getVacancies() + (novoEstado ? 1 : -1));
+                    if (joining) {
+                        group.removeMember(creatorId);
+                    } else if (previousMember != null) {
+                        group.addMember(previousMember);
+                    }
+                    group.setJoined(!joining);
+                    group.setVacancies(previousVacancies);
+                    adapter.notifyDataSetChanged();
                 }
             }
 
             @Override
             public void onFailure(Call<StudyGroup> call, Throwable t) {
                 Toast.makeText(MainActivity.this, "Falha ao atualizar participação: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                if (joining) {
+                    group.removeMember(creatorId);
+                } else if (previousMember != null) {
+                    group.addMember(previousMember);
+                }
+                group.setJoined(!joining);
+                group.setVacancies(previousVacancies);
+                adapter.notifyDataSetChanged();
             }
         });
     }
 
+    private void abrirMembros(StudyGroup group) {
+        Intent intent = new Intent(this, GroupDetailsActivity.class);
+        intent.putExtra("group_id", group.getId());
+        intent.putExtra("group_title", group.getTitle());
+        startActivity(intent);
+    }
+
     private void apagarGrupo(StudyGroup group) {
+        if (!creatorId.equals(group.getCreatorId())) {
+            Toast.makeText(this, "Só quem criou o grupo o pode eliminar.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         new AlertDialog.Builder(this)
-                .setTitle("Fechar Vaga")
-                .setMessage("Deseja encerrar a vaga '" + group.getTitle() + "'?")
+                .setTitle("Eliminar Grupo")
+                .setMessage("Deseja eliminar o grupo '" + group.getTitle() + "'?")
                 .setPositiveButton("Sim", (dialog, which) -> {
                     ApiClient.getService().deleteStudyGroup(group.getId()).enqueue(new Callback<Void>() {
                         @Override
                         public void onResponse(Call<Void> call, Response<Void> response) {
                             if (response.isSuccessful()) {
-                                Toast.makeText(MainActivity.this, "Vaga encerrada!", Toast.LENGTH_SHORT).show();
+                                Toast.makeText(MainActivity.this, "Grupo eliminado!", Toast.LENGTH_SHORT).show();
                                 carregarGrupos();
                             } else {
                                 Toast.makeText(MainActivity.this, "Erro ao remover: " + response.code(), Toast.LENGTH_SHORT).show();
@@ -234,7 +284,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
     private void mostrarDialogoCriacao() {
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Publicar Nova Vaga no RestDB");
+        builder.setTitle("Criar Grupo de Estudo");
 
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
@@ -259,7 +309,7 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
         builder.setView(layout);
 
-        builder.setPositiveButton("Publicar na BD", (dialog, which) -> {
+        builder.setPositiveButton("Criar Grupo", (dialog, which) -> {
             String title = inputTitle.getText().toString().trim();
             String subject = inputSubject.getText().toString().trim();
             String turma = inputTurma.getText().toString().trim();
@@ -272,14 +322,14 @@ public class MainActivity extends AppCompatActivity implements SensorEventListen
 
             // Envia as coordenadas reais do campus/utilizador para calcular a distância
             StudyGroup novoGrupo = new StudyGroup(title, subject, vacancies, turma, ISEP_LATITUDE, ISEP_LONGITUDE);
-            novoGrupo.setJoined(true);
+            novoGrupo.setCreatorId(creatorId);
             novoGrupo.setVacancies(Math.max(1, vacancies));
 
             ApiClient.getService().createStudyGroup(novoGrupo).enqueue(new Callback<StudyGroup>() {
                 @Override
                 public void onResponse(Call<StudyGroup> call, Response<StudyGroup> response) {
                     if (response.isSuccessful()) {
-                        Toast.makeText(MainActivity.this, "Vaga gravada com sucesso no RestDB!", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(MainActivity.this, "Grupo criado com sucesso!", Toast.LENGTH_SHORT).show();
                         carregarGrupos();
                     } else {
                         Toast.makeText(MainActivity.this, "Erro API: " + response.code(), Toast.LENGTH_LONG).show();

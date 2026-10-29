@@ -10,9 +10,9 @@
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
-        android:icon="@android:drawable/sym_def_app_icon"
+        android:icon="@mipmap/ic_launcher"
         android:label="StudyMatch"
-        android:roundIcon="@android:drawable/sym_def_app_icon"
+        android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
         android:theme="@style/Theme.StudyMatch">
 
@@ -29,6 +29,12 @@
             android:name=".PublishedGroupsActivity"
             android:exported="false"
             android:label="Vagas Publicadas"
+            android:parentActivityName=".MainActivity" />
+
+        <activity
+            android:name=".GroupDetailsActivity"
+            android:exported="false"
+            android:label="Membros do Grupo"
             android:parentActivityName=".MainActivity" />
     </application>
 

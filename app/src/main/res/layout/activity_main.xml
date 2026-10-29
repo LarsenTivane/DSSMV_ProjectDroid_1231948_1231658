@@ -5,6 +5,13 @@
               android:orientation="vertical"
               android:padding="16dp">
 
+    <ImageView
+            android:layout_width="match_parent"
+            android:layout_height="160dp"
+            android:contentDescription="@string/study_group_cover_description"
+            android:scaleType="centerCrop"
+            android:src="@drawable/flork_study_group_cover" />
+
     <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
@@ -32,17 +39,17 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:layout_marginStart="8dp"
-                android:text="+ Nova Vaga" />
-        <Button
+                android:text="+ Criar Grupo" />
+    </LinearLayout>
+
+    <Button
                 android:id="@+id/btnAbrirVagasPublicadas"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="📋 Ver Todas as Vagas Publicadas"
+                android:text="📋 Ver Todos os Grupos"
                 android:backgroundTint="#1A237E"
                 android:textColor="#FFFFFF"
                 android:layout_marginTop="8dp" />
-
-    </LinearLayout>
 
     <!-- Indicador do Modo Foco (Sensor de Proximidade) -->
     <TextView

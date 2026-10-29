@@ -40,6 +40,7 @@ public class PublishedGroupsActivity extends AppCompatActivity {
 
     private RecyclerView rvPublishedGroups;
     private StudyGroupAdapter adapter;
+    private String creatorId;
     private TextView tvTotalVagas;
     private ProgressBar progressBar;
     private Spinner spTurmas;
@@ -64,6 +65,7 @@ public class PublishedGroupsActivity extends AppCompatActivity {
         spTurmas = findViewById(R.id.spTurmas);
         Button btnFecharJanela = findViewById(R.id.btnFecharJanela);
         btnRecarregarVagas = findViewById(R.id.btnRecarregarVagas);
+        creatorId = GroupCreatorIdentity.getId(this);
 
         rvPublishedGroups.setLayoutManager(new LinearLayoutManager(this));
         adapter = new StudyGroupAdapter(new StudyGroupAdapter.OnActionClickListener() {
@@ -76,7 +78,12 @@ public class PublishedGroupsActivity extends AppCompatActivity {
             public void onDeleteClick(StudyGroup group) {
                 confirmarRemocao(group);
             }
-        });
+
+            @Override
+            public void onViewMembersClick(StudyGroup group) {
+                abrirMembros(group);
+            }
+        }, creatorId);
         rvPublishedGroups.setAdapter(adapter);
 
         btnFecharJanela.setOnClickListener(v -> finish());
@@ -114,6 +121,9 @@ public class PublishedGroupsActivity extends AppCompatActivity {
                 terminarCarregamento();
                 if (response.isSuccessful() && response.body() != null) {
                     todosGrupos = response.body();
+                    for (StudyGroup group : todosGrupos) {
+                        group.setJoined(group.hasMember(creatorId));
+                    }
                     calcularDistanciasEConfigurarFiltro();
                 } else if (response.code() == 429) {
                     tvTotalVagas.setText("Limite de pedidos momentâneo. Aguarde 2 segundos.");
@@ -223,22 +233,41 @@ public class PublishedGroupsActivity extends AppCompatActivity {
     }
 
     private void alterarParticipacaoGrupo(StudyGroup group) {
+        if (group.isJoined()) {
+            atualizarParticipacaoGrupo(group, null);
+            return;
+        }
+
+        MemberDetailsDialog.show(this,
+                (name, studentNumber) -> atualizarParticipacaoGrupo(
+                        group, new StudyGroupMember(creatorId, name, studentNumber)));
+    }
+
+    private void atualizarParticipacaoGrupo(StudyGroup group, StudyGroupMember member) {
         if (!registarPedidoApi()) {
             return;
         }
 
-        boolean novoEstado = !group.isJoined();
-        group.setJoined(novoEstado);
-        group.setVacancies(Math.max(0, group.getVacancies() + (novoEstado ? -1 : 1)));
+        boolean joining = member != null;
+        StudyGroupMember previousMember = group.getMember(creatorId);
+        int previousVacancies = group.getVacancies();
+        if (joining) {
+            group.addMember(member);
+        } else {
+            group.removeMember(creatorId);
+        }
+        group.setJoined(joining);
+        group.setVacancies(Math.max(0, previousVacancies + (joining ? -1 : 1)));
 
         ApiClient.getService().updateStudyGroup(group.getId(), group).enqueue(new Callback<StudyGroup>() {
             @Override
             public void onResponse(Call<StudyGroup> call, Response<StudyGroup> response) {
                 if (response.isSuccessful()) {
-                    Toast.makeText(PublishedGroupsActivity.this, novoEstado ? "Entrou no grupo!" : "Saiu do grupo.", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(PublishedGroupsActivity.this, joining ? "Entraste no grupo!" : "Saíste do grupo.", Toast.LENGTH_SHORT).show();
                     atualizarListaDepoisDoCooldown();
                 } else {
                     Toast.makeText(PublishedGroupsActivity.this, "Erro ao atualizar participação (HTTP " + response.code() + ").", Toast.LENGTH_SHORT).show();
+                    restaurarParticipacao(group, previousMember, previousVacancies, joining);
                 }
             }
 
@@ -249,14 +278,39 @@ public class PublishedGroupsActivity extends AppCompatActivity {
                         "Falha ao atualizar o grupo"
                                 + (detalhe == null || detalhe.trim().isEmpty() ? "." : ": " + detalhe),
                         Toast.LENGTH_LONG).show();
+                restaurarParticipacao(group, previousMember, previousVacancies, joining);
             }
         });
     }
 
+    private void restaurarParticipacao(StudyGroup group, StudyGroupMember previousMember,
+                                       int previousVacancies, boolean joining) {
+        if (joining) {
+            group.removeMember(creatorId);
+        } else if (previousMember != null) {
+            group.addMember(previousMember);
+        }
+        group.setJoined(!joining);
+        group.setVacancies(previousVacancies);
+        adapter.notifyDataSetChanged();
+    }
+
+    private void abrirMembros(StudyGroup group) {
+        android.content.Intent intent = new android.content.Intent(this, GroupDetailsActivity.class);
+        intent.putExtra("group_id", group.getId());
+        intent.putExtra("group_title", group.getTitle());
+        startActivity(intent);
+    }
+
     private void confirmarRemocao(StudyGroup group) {
+        if (!creatorId.equals(group.getCreatorId())) {
+            Toast.makeText(this, "Só quem criou o grupo o pode eliminar.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
         new AlertDialog.Builder(this)
-                .setTitle("Encerrar Vaga")
-                .setMessage("Deseja fechar a vaga '" + group.getTitle() + "'?")
+                .setTitle("Eliminar Grupo")
+                .setMessage("Deseja eliminar o grupo '" + group.getTitle() + "'?")
                 .setPositiveButton("Sim", (dialog, which) -> {
                     if (!registarPedidoApi()) {
                         return;
@@ -266,7 +320,7 @@ public class PublishedGroupsActivity extends AppCompatActivity {
                         @Override
                         public void onResponse(Call<Void> call, Response<Void> response) {
                             if (response.isSuccessful()) {
-                                Toast.makeText(PublishedGroupsActivity.this, "Vaga encerrada!", Toast.LENGTH_SHORT).show();
+                                Toast.makeText(PublishedGroupsActivity.this, "Grupo eliminado!", Toast.LENGTH_SHORT).show();
                                 atualizarListaDepoisDoCooldown();
                             } else {
                                 Toast.makeText(PublishedGroupsActivity.this,

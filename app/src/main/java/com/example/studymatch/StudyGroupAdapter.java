@@ -17,13 +17,16 @@ public class StudyGroupAdapter extends RecyclerView.Adapter<StudyGroupAdapter.St
     public interface OnActionClickListener {
         void onJoinClick(StudyGroup group);
         void onDeleteClick(StudyGroup group);
+        void onViewMembersClick(StudyGroup group);
     }
 
     private final List<StudyGroup> groups = new ArrayList<>();
     private final OnActionClickListener actionClickListener;
+    private final String creatorId;
 
-    public StudyGroupAdapter(OnActionClickListener actionClickListener) {
+    public StudyGroupAdapter(OnActionClickListener actionClickListener, String creatorId) {
         this.actionClickListener = actionClickListener;
+        this.creatorId = creatorId;
     }
 
     public void setGroups(List<StudyGroup> newGroups) {
@@ -49,6 +52,14 @@ public class StudyGroupAdapter extends RecyclerView.Adapter<StudyGroupAdapter.St
         holder.subjectTextView.setText(group.getSubject());
         holder.vacanciesTextView.setText("Vagas: " + group.getVacancies() + (group.isJoined() ? " • Já estou no grupo" : ""));
         holder.joinButton.setText(group.isJoined() ? "Sair do grupo" : "Entrar no grupo");
+        boolean canDelete = creatorId.equals(group.getCreatorId());
+        holder.deleteButton.setVisibility(canDelete ? View.VISIBLE : View.GONE);
+
+        holder.viewMembersButton.setOnClickListener(v -> {
+            if (actionClickListener != null) {
+                actionClickListener.onViewMembersClick(group);
+            }
+        });
 
         holder.joinButton.setOnClickListener(v -> {
             if (actionClickListener != null) {
@@ -74,6 +85,7 @@ public class StudyGroupAdapter extends RecyclerView.Adapter<StudyGroupAdapter.St
         private final TextView vacanciesTextView;
         private final Button joinButton;
         private final Button deleteButton;
+        private final Button viewMembersButton;
 
         StudyGroupViewHolder(@NonNull View itemView) {
             super(itemView);
@@ -82,6 +94,7 @@ public class StudyGroupAdapter extends RecyclerView.Adapter<StudyGroupAdapter.St
             vacanciesTextView = itemView.findViewById(R.id.tvGroupVacancies);
             joinButton = itemView.findViewById(R.id.btnJoinGroup);
             deleteButton = itemView.findViewById(R.id.btnDeleteGroup);
+            viewMembersButton = itemView.findViewById(R.id.btnViewGroupMembers);
         }
     }
 }
