@@ -10,7 +10,7 @@
             android:layout_height="160dp"
             android:contentDescription="@string/study_group_cover_description"
             android:scaleType="centerCrop"
-            android:src="@drawable/flork_study_group_cover" />
+            android:src="@drawable/study_group_cover" />
 
     <TextView
             android:layout_width="wrap_content"

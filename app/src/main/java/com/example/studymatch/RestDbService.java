@@ -16,6 +16,9 @@ public interface RestDbService {
     @GET("rest/studygroups")
     Call<List<StudyGroup>> getStudyGroups();
 
+    @GET("rest/studygroups/{id}")
+    Call<StudyGroup> getStudyGroup(@Path("id") String id);
+
     @POST("rest/studygroups")
     Call<StudyGroup> createStudyGroup(@Body StudyGroup group);
 
